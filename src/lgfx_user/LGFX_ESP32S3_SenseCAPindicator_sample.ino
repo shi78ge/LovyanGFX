@@ -16,6 +16,7 @@ public:
   lgfx::Panel_ST7701 _panel_instance;
   lgfx::Light_PWM _light_instance;
   //lgfx::Touch_GT911  _touch_instance;
+  lgfx::Touch_FT5x06  _touch_instance;
   
   // コンストラクタを作成し、ここで各種設定を行います。
   // クラス名を変更した場合はコンストラクタも同じ名前を指定してください。
@@ -39,7 +40,7 @@ public:
       auto cfg = _panel_instance.config_detail();
 
       cfg.use_psram = 1;
-      //cfg.pin_cs = 1; //1
+      cfg.pin_cs = 1; //1
       cfg.pin_sclk = 41; //12
       cfg.pin_mosi = 48; //11
 
@@ -89,26 +90,34 @@ public:
     _panel_instance.setBus(&_bus_instance);
 
     {
-      /*
+      
       auto cfg = _touch_instance.config();
       cfg.x_min      = 0;
       cfg.x_max      = 480;
       cfg.y_min      = 0;
       cfg.y_max      = 480;
-      cfg.bus_shared = false;
+      //cfg.pin_int = -1; //追加
+      cfg.bus_shared = true; //false
       cfg.offset_rotation = 0;
 
-      cfg.i2c_port   = I2C_NUM_0; //NUM_1
-
+      cfg.i2c_port   = I2C_NUM_1; //NUM_1
+      cfg.i2c_addr = 0x48; //20,48
       cfg.pin_int    = GPIO_NUM_NC;
       cfg.pin_sda    = GPIO_NUM_39;
       cfg.pin_scl    = GPIO_NUM_40;
       cfg.pin_rst    = GPIO_NUM_NC; //38
 
-      cfg.freq       = 400000;
+      /*
+      cfg.pin_sclk  = 41;
+      cfg.pin_mosi  = 48;
+      //cfg.pin_miso  = 
+      */
+
+
+      cfg.freq       = 600000; //400000
       _touch_instance.config(cfg);
       _panel_instance.setTouch(&_touch_instance);
-      */
+      
     }
 
      {
@@ -132,11 +141,12 @@ void setup(void)
   Serial.println("set1");
   display.init();
   display.setColorDepth(16);
-  display.setBrightness(255);
+  //display.setBrightness(128);
   
 
   display.setTextSize((std::max(display.width(), display.height()) + 255) >> 8);
-
+  display.fillScreen(TFT_BLACK);
+  
   // タッチが使用可能な場合のキャリブレーションを行います。（省略可）
   /*
   if (display.touch())
@@ -144,6 +154,7 @@ void setup(void)
     if (display.width() < display.height()) display.setRotation(display.getRotation() ^ 1);
 
     // 画面に案内文章を描画します。
+    display.setTextColor(TFT_WHITE);
     display.setTextDatum(textdatum_t::middle_center);
     display.drawString("touch the arrow marker.", display.width()>>1, display.height() >> 1);
     display.setTextDatum(textdatum_t::top_left);
@@ -152,17 +163,30 @@ void setup(void)
     std::uint16_t fg = TFT_WHITE;
     std::uint16_t bg = TFT_BLACK;
     if (display.isEPD()) std::swap(fg, bg);
-    display.calibrateTouch(nullptr, fg, bg, std::max(display.width(), display.height()) >> 3);
+    uint16_t calibrateData[8];
+    display.calibrateTouch(calibrateData, fg, bg, std::max(display.width(), display.height()) >> 3);
+    Serial.printf("[0] x_min = %d\n", calibrateData[0]);
+    Serial.printf("[1] y_min = %d\n", calibrateData[1]);
+    Serial.printf("[2] x_min = %d\n", calibrateData[2]);
+    Serial.printf("[3] y_max = %d\n", calibrateData[3]);
+    Serial.printf("[4] x_max = %d\n", calibrateData[4]);
+    Serial.printf("[5] y_min = %d\n", calibrateData[5]);
+    Serial.printf("[6] x_max = %d\n", calibrateData[6]);
+    Serial.printf("[7] y_max = %d\n", calibrateData[7]);
+    Serial.printf("x_min = %d\n", (calibrateData[0] + calibrateData[2]) / 2);
+    Serial.printf("x_max = %d\n", (calibrateData[4] + calibrateData[6]) / 2);
+    Serial.printf("y_min = %d\n", (calibrateData[1] + calibrateData[5]) / 2);
+    Serial.printf("y_max = %d\n", (calibrateData[3] + calibrateData[3]) / 2);
   }
   */
-
-  display.fillScreen(TFT_WHITE);
+  display.fillScreen(TFT_BLACK);
+  
 }
 
 uint32_t count = ~0;
 void loop(void)
 {
-  Serial.println("set2");
+  //Serial.println("set2");
   display.startWrite();
   display.setRotation(++count & 7);
   display.setColorDepth((count & 8) ? 16 : 24);
@@ -184,7 +208,12 @@ void loop(void)
 
   int32_t x, y;
   if (display.getTouch(&x, &y)) {
-    display.fillRect(x-2, y-2, 5, 5, count*7);
+    
+    lgfx::touch_point_t tp;
+    display.getTouchRaw(&tp);
+    Serial.printf("raw_x = %d, raw_y = %d\n", tp.x, tp.y);
+    //display.fillRect(x-2, y-2, 5, 5, count*7);
+    display.fillRect(x-2, y-2, 7, 7, TFT_WHITE);
   }
-  Serial.println("test");
+  //Serial.println("test");
 }
